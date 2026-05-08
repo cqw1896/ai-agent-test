@@ -33,7 +33,7 @@ uv add langchain-community
 3. 安装 langchain-ollama
    uv add langchain-ollama
 
-五、安装 deepseek api 接口
+五、安装 deepseek api 接口，会安装openai接口
 uv add langchain-deepseek
 
 六、安装向量数据库
