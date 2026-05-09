@@ -1,0 +1,74 @@
+# 根据搜索结果，LangChain 提供了 init_embeddings 函数来初始化嵌入模型，类似于 init_chat_model 用于聊天模型 [[1]]。以下是使用第三方模型（如 OpenAI）的完整代码：
+# 语义搜索 - 使用第三方模型（OpenAI）
+## 索引
+# 1. 读取PDF，按照页来管理，每页封装成一个Document对象, List[Document]
+# 2. 分割文本, 文本段（chunk），每段封装成一个Document, List[Document]
+# 3. 向量化：  文本段 <=> 向量， 需要嵌入模型来辅助
+# 4. 向量库：  把多个 文本段:向量 存到向量库，OK了。
+# uv add pypdf langchain-openai
+
+import os
+import sys
+
+# 【关键】清除所有代理环境变量，强制直连
+for key in ['http_proxy', 'https_proxy', 'HTTP_PROXY', 'HTTPS_PROXY', 'all_proxy', 'ALL_PROXY']:
+    if key in os.environ:
+        del os.environ[key]
+
+# 设置 OpenAI API Key（请替换为你的实际密钥）
+os.environ['OPENAI_API_KEY'] = 'your-openai-api-key-here'
+
+# 1. 读取PDF，按照页来管理，Document, List[Document]
+from langchain_community.document_loaders import PyPDFLoader
+
+file_path = 'Git.pdf'
+loader = PyPDFLoader(file_path)
+docs = loader.load()
+print(len(docs))  # 117
+print(type(docs[0]))  # <class 'langchain_core.documents.base.Document'>
+print(docs[0])  
+
+# 2. 分割文本，文本段(chunk), Document, List[Document]
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+text_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=1000,
+    chunk_overlap=200,
+    add_start_index=True
+)
+
+all_splits = text_splitter.split_documents(docs)  # List[Document]
+print('-' * 80)
+print(len(all_splits))  # 134
+print(all_splits[0])
+
+# 3. 向量化：文本段 <=> 向量，需要嵌入模型来辅助
+# 4. 文本块:向量 的存储, 包含第3步
+from langchain_chroma import Chroma
+from langchain.embeddings.base import init_embeddings
+
+# 使用 init_embeddings 初始化 OpenAI 嵌入模型
+# 等价于 from langchain_openai import OpenAIEmbeddings
+embedding = init_embeddings('openai:text-embedding-3-small')
+
+vector_store = Chroma(
+    collection_name='example_collection',
+    embedding_function=embedding,
+    persist_directory='./chroma_langchain_db_openai'
+)
+
+ids = vector_store.add_documents(documents=all_splits)
+print('*' * 80)
+print(len(ids))
+print(ids)
+'''
+主要改动说明：
+1. 导入变更：将 from langchain_ollama import OllamaEmbeddings 替换为 from langchain.embeddings.base import init_embeddings [[2]]
+2. 模型初始化：将 OllamaEmbeddings(model='nomic-embed-text') 替换为 init_embeddings('openai:text-embedding-3-small')，使用 OpenAI 的嵌入模型
+3. API Key 配置：需要设置 OPENAI_API_KEY 环境变量
+4. 持久化目录：更改为 ./chroma_langchain_db_openai 以区分不同模型的向量库
+其他可选的第三方模型：
+• init_embeddings('openai:text-embedding-ada-002') - OpenAI 旧版模型
+• init_embeddings('cohere:embed-english-v3.0') - Cohere 模型
+• init_embeddings('google-genai:models/text-embedding-004') - Google 模型
+'''
